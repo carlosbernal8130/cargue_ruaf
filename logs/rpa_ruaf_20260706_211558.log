@@ -1,0 +1,17 @@
+21:15:58 INFO    Log: logs/rpa_ruaf_20260706_211558.log
+21:15:58 INFO    ============================================================
+21:15:58 INFO    RPA cargue resolucion_ruaf
+21:15:58 INFO    Archivo : RUA200AAFP20260619NI000900474727.zip (262.1 MB)
+21:15:58 INFO    Destino : modo=docker db=bdua_fosyga user=postgres
+21:15:58 INFO              contenedor=mi_postgres_data
+21:15:58 INFO    ============================================================
+21:15:58 INFO    [1/5] (Re)creando tablas unificadas y resolucion_ruaf ...
+21:15:58 INFO    [2/5] Cargando archivo en 'unificadas' (COPY FROM STDIN)...
+21:15:58 INFO    Descompresor : unzip -p RUA200AAFP20260619NI000900474727.zip
+21:15:58 INFO    Carga        : docker exec -i -e PGPASSWORD=Majito.08 mi_postgres_data psql -U postgres -d bdua_fosyga -v ON_ERROR_STOP=1 -c COPY unificadas FROM STDIN
+21:16:34 INFO          -> 27,446,114 filas cargadas.
+21:16:34 INFO    [3/5] Detectando formato de fecha ...
+21:16:34 INFO    Formato de fecha detectado: AAAAMMDD (car. pos.29='0') -> SCRIPT 2
+21:16:34 INFO    [4/5] Poblando 'resolucion_ruaf' con SCRIPT 2 ...
+21:24:12 ERROR   ABORTADO: psql fallo (rc=1):
+ERROR:  invalid input syntax for type bigint: "L7468XFH1       "

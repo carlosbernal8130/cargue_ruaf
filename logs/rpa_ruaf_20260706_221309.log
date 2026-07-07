@@ -1,0 +1,35 @@
+22:13:09 INFO    Log: logs/rpa_ruaf_20260706_221309.log
+22:13:09 INFO    ============================================================
+22:13:09 INFO    RPA cargue resolucion_ruaf (carga directa, sin tabla unificadas)
+22:13:09 INFO    Archivo : /home/carlos/Música/RUAF/RUA200AAFP20260619NI000900474727.zip (262.1 MB)
+22:13:09 INFO    Destino : modo=docker db=bdua_fosyga user=postgres
+22:13:09 INFO              contenedor=mi_postgres_data
+22:13:09 INFO    ============================================================
+22:13:09 INFO    [1/3] (Re)creando tabla resolucion_ruaf ...
+22:13:09 INFO    [2/3] Transformando y cargando (streaming) ...
+22:13:09 INFO    Descompresor : unzip -p /home/carlos/Música/RUAF/RUA200AAFP20260619NI000900474727.zip
+22:13:09 INFO    Carga        : docker exec -i -e PGPASSWORD=Majito.08 mi_postgres_data psql -U postgres -d bdua_fosyga -v ON_ERROR_STOP=1 -c COPY resolucion_ruaf (tipo_documento, nro_documento, cod_administradora, fecha) FROM STDIN
+22:13:09 INFO    Formato de fecha detectado: AAAAMMDD -> SCRIPT 2
+22:23:05 INFO          -> 27,446,114 filas cargadas en resolucion_ruaf.
+22:23:05 INFO    [3/3] Validando ...
+22:23:32 INFO    ------------------------------------------------------------
+22:23:32 INFO    VALIDACIONES
+22:23:32 INFO      Lineas leidas del archivo    : 27,446,114
+22:23:32 INFO      Filas cargadas (COPY)        : 27,446,114
+22:23:32 INFO      count(*) resolucion_ruaf     : 27,446,114
+22:23:32 INFO      fechas con longitud != 10    : 0  (esperado 0)
+22:23:32 INFO      cod_administradora c/espacios: 0  (esperado 0)
+22:23:32 INFO      documentos alfanumericos     : 1  (informativo)
+22:23:32 INFO    Muestra resolucion_ruaf:
+tipo_documento | nro_documento | cod_administradora |   fecha    
+----------------+---------------+--------------------+------------
+ CC             | 17560287      | 25-14              | 2018-06-01
+ CC             | 35264085      | 25-14              | 2004-04-14
+ CC             | 77160388      | 231001             | 1998-10-18
+ CC             | 1513613       | 25-14              | 1997-07-11
+ CC             | 13791944      | 230201             | 2007-02-01
+(5 rows)
+22:23:32 INFO    ------------------------------------------------------------
+22:23:32 INFO    RESULTADO: OK. resolucion_ruaf lista con 27,446,114 registros. (623.2 s)
+22:23:32 INFO    Siguiente paso manual (instructivo): solicitar a redes la copia de resolucion_ruaf hacia bdua_fosyga de produccion.
+22:23:32 INFO    ============================================================
