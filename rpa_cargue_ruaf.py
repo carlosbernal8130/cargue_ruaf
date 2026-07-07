@@ -148,7 +148,7 @@ def decompressor_cmd(path):
 # ----------------------------------------------------------------------------- #
 #  Transformacion en streaming + carga
 # ----------------------------------------------------------------------------- #
-BATCH = 50000  # lineas por escritura al pipe de psql
+BATCH = 100000  # lineas por escritura al pipe de psql
 
 
 def _transformar(instream, outstream, log):
