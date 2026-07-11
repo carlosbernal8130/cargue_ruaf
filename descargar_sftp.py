@@ -213,7 +213,8 @@ class SFTPTransport:
             if skip_ssl_verify:
                 log("⚠️  ADVERTENCIA: Verificación de host key deshabilitada (--skip-ssl-verify)")
                 log("⚠️  Esto es inseguro y vulnerable a ataques MITM. Use solo en desarrollo/testing.")
-                self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                # WarningPolicy sin cargar known_hosts: avisa pero permite conectar
+                self.ssh.set_missing_host_key_policy(paramiko.WarningPolicy())
             else:
                 # Cargar known_hosts del usuario; rechazar claves desconocidas
                 self.ssh.load_system_host_keys()
