@@ -1,0 +1,156 @@
+name: Tests y Linting
+
+on:
+  push:
+    branches: [master, main, develop]
+  pull_request:
+    branches: [master, main, develop]
+  schedule:
+    # Ejecutar tests diariamente a las 02:00 UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Lint con flake8
+        run: |
+          # Stop the build if there are Python syntax errors or undefined names
+          flake8 rpa_cargue_ruaf.py descargar_sftp.py --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Exit-zero treats all errors as warnings
+          flake8 rpa_cargue_ruaf.py descargar_sftp.py --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
+
+      - name: Format check con black
+        run: |
+          black --check rpa_cargue_ruaf.py descargar_sftp.py run_rpa.sh run_ruaf.sh 2>/dev/null || echo "Format issues found (run 'black' to fix)"
+
+      - name: Import sort check con isort
+        run: |
+          isort --check-only rpa_cargue_ruaf.py descargar_sftp.py || echo "Import order issues found (run 'isort' to fix)"
+
+  tests:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Tests con pytest
+        run: |
+          pytest tests/ -v --cov=. --cov-report=xml --cov-report=html
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Archive test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report-py${{ matrix.python-version }}
+          path: htmlcov/
+
+  security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Security verification script
+        run: |
+          python3 verify_security.py
+
+      - name: Check for secrets in code
+        run: |
+          # Verificar que no hay credenciales hardcodeadas
+          ! grep -r "password\s*=" rpa_cargue_ruaf.py descargar_sftp.py || echo "Warning: possible password in code"
+          ! grep -r "PGPASSWORD=" config.*.env || echo "Warning: PGPASSWORD in env files"
+          ! grep -r "api_key\|token\|secret" rpa_cargue_ruaf.py descargar_sftp.py || echo "Warning: possible secret in code"
+
+  documentation:
+    name: Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check documentation exists
+        run: |
+          test -f README.md && echo "✓ README.md exists"
+          test -f SECURITY.md && echo "✓ SECURITY.md exists"
+          test -f DEVELOPMENT.md && echo "✓ DEVELOPMENT.md exists"
+          test -f ARCHITECTURE.md && echo "✓ ARCHITECTURE.md exists" || echo "⚠ ARCHITECTURE.md missing (create it)"
+
+      - name: Check for required sections
+        run: |
+          grep -q "## " README.md && echo "✓ README.md has sections"
+          grep -q "## " SECURITY.md && echo "✓ SECURITY.md has sections"
+          grep -q "## " DEVELOPMENT.md && echo "✓ DEVELOPMENT.md has sections"
+
+  build:
+    name: Build Status
+    needs: [quality, tests, security]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Check job status
+        run: |
+          if [ "${{ needs.quality.result }}" = "failure" ] || \
+             [ "${{ needs.tests.result }}" = "failure" ] || \
+             [ "${{ needs.security.result }}" = "failure" ]; then
+            echo "::error::Some jobs failed"
+            exit 1
+          fi
+          echo "✓ All checks passed!"

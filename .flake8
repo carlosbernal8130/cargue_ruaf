@@ -1,0 +1,37 @@
+[flake8]
+max-line-length = 100
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    build,
+    dist,
+    .eggs,
+    .tox,
+    .mypy_cache,
+    .pytest_cache,
+    htmlcov,
+    .github,
+    tests/fixtures
+
+ignore =
+    E203,  # Whitespace before ':'
+    W503,  # Line break before binary operator
+    E501,  # Line too long (handled by black)
+
+per-file-ignores =
+    __init__.py:F401,  # Imported but unused
+    tests/*:F401,F811  # Fixtures and mocks may appear unused
+
+# Información adicional
+show-source = True
+show-pep8 = True
+statistics = True
+count = True
+
+# Palabras claves para reportes
+# F: PyFlakes - errores lógicos
+# E: Errores de estilo PEP8
+# W: Advertencias PEP8
+# C: Complejidad (McCabe)
