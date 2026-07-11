@@ -21,11 +21,13 @@ Uso típico (los RUA200AAFP están en 'Ministerio 2' = ftp.minsalud.gov.co):
     python3 descargar_sftp.py                       # site por defecto: 'Ministerio 2'
     python3 descargar_sftp.py --site 'Adres'        # usar el SFTP de ADRES
     python3 descargar_sftp.py --remote-dir '' --dest .
+    python3 descargar_sftp.py --skip-ssl-verify     # deshabilitar validación SSL (solo desarrollo)
 
 SEGURIDAD:
 - Los certificados SSL/TLS se validan contra el sistema (CERT_REQUIRED)
 - Para SFTP se recomienda usar claves SSH en lugar de contraseñas
 - Las credenciales nunca se logguean (solo stderr con progreso)
+- Para deshabilitar validación SSL, usar --skip-ssl-verify (SOLO para desarrollo/testing)
 """
 
 import argparse
@@ -132,12 +134,18 @@ class FTPSTransport:
     Valida certificados SSL contra la CA del sistema para prevenir MITM attacks.
     """
 
-    def __init__(self, cfg, remote_dir, timeout):
+    def __init__(self, cfg, remote_dir, timeout, skip_ssl_verify=False):
         implicito = cfg["port"] == 990
-        # Crear contexto SSL que valida certificados del servidor
+        # Crear contexto SSL
         ctx = ssl.create_default_context()
-        ctx.check_hostname = True
-        ctx.verify_mode = ssl.CERT_REQUIRED
+        if skip_ssl_verify:
+            log("⚠️  ADVERTENCIA: Verificación SSL deshabilitada (--skip-ssl-verify)")
+            log("⚠️  Esto es inseguro y vulnerable a ataques MITM. Use solo en desarrollo/testing.")
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+        else:
+            ctx.check_hostname = True
+            ctx.verify_mode = ssl.CERT_REQUIRED
         cls = ImplicitFTP_TLS if implicito else ftplib.FTP_TLS
         try:
             log("Conectando FTPS %s a %s:%d ..."
@@ -155,6 +163,7 @@ class FTPSTransport:
             raise SystemExit(
                 f"Error de verificación SSL en {cfg['host']}: {e}\n"
                 "Verifica que el certificado del servidor sea válido.\n"
+                "Para ignorar este error, usa: --skip-ssl-verify\n"
                 "Si el problema persiste, contacta a administración."
             )
 
@@ -195,15 +204,20 @@ class SFTPTransport:
     Si la clave del host es desconocida, la conexión falla (WarningPolicy).
     """
 
-    def __init__(self, cfg, remote_dir, timeout):
+    def __init__(self, cfg, remote_dir, timeout, skip_ssl_verify=False):
         import paramiko  # solo se necesita para SFTP
         self.remote_dir = remote_dir
         try:
             log("Conectando SFTP a %s@%s:%d ..." % (cfg["user"], cfg["host"], cfg["port"]))
             self.ssh = paramiko.SSHClient()
-            # Cargar known_hosts del usuario; rechazar claves desconocidas
-            self.ssh.load_system_host_keys()
-            self.ssh.set_missing_host_key_policy(paramiko.WarningPolicy())
+            if skip_ssl_verify:
+                log("⚠️  ADVERTENCIA: Verificación de host key deshabilitada (--skip-ssl-verify)")
+                log("⚠️  Esto es inseguro y vulnerable a ataques MITM. Use solo en desarrollo/testing.")
+                self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            else:
+                # Cargar known_hosts del usuario; rechazar claves desconocidas
+                self.ssh.load_system_host_keys()
+                self.ssh.set_missing_host_key_policy(paramiko.WarningPolicy())
             self.ssh.connect(
                 hostname=cfg["host"], port=cfg["port"], username=cfg["user"],
                 password=cfg["password"], timeout=timeout, banner_timeout=timeout,
@@ -214,7 +228,8 @@ class SFTPTransport:
             raise SystemExit(
                 f"Error de conexión SSH a {cfg['host']}:{cfg['port']}: {e}\n"
                 "Verifica que la clave de host sea válida.\n"
-                "Ejecuta: ssh-keyscan -t rsa {cfg['host']} >> ~/.ssh/known_hosts"
+                "Ejecuta: ssh-keyscan -t rsa {cfg['host']} >> ~/.ssh/known_hosts\n"
+                "O usa --skip-ssl-verify para ignorar esta validación (no recomendado)"
             )
 
     def _full(self, name):
@@ -237,10 +252,10 @@ class SFTPTransport:
             pass
 
 
-def abrir_transporte(cfg, remote_dir, timeout):
+def abrir_transporte(cfg, remote_dir, timeout, skip_ssl_verify=False):
     if cfg["protocol"] == "1":     # 1 = SFTP en FileZilla
-        return SFTPTransport(cfg, remote_dir, timeout)
-    return FTPSTransport(cfg, remote_dir, timeout)
+        return SFTPTransport(cfg, remote_dir, timeout, skip_ssl_verify)
+    return FTPSTransport(cfg, remote_dir, timeout, skip_ssl_verify)
 
 
 # ----------------------------------------------------------------------------- #
@@ -311,6 +326,8 @@ def main(argv=None):
     p.add_argument("--pattern", default=PATRON_DEFECTO)
     p.add_argument("--force", action="store_true")
     p.add_argument("--timeout", type=float, default=40.0)
+    p.add_argument("--skip-ssl-verify", action="store_true",
+                   help="Deshabilita validación de certificados SSL (inseguro, solo para desarrollo).")
     args = p.parse_args(argv if argv is not None else sys.argv[1:])
 
     if not os.path.isfile(args.filezilla):
@@ -324,7 +341,7 @@ def main(argv=None):
     os.makedirs(args.dest, exist_ok=True)
     tr = None
     try:
-        tr = abrir_transporte(cfg, remote_dir, args.timeout)
+        tr = abrir_transporte(cfg, remote_dir, args.timeout, args.skip_ssl_verify)
         nombre = elegir_ultimo(tr, args.pattern)
         local = descargar(tr, nombre, args.dest, args.force)
     finally:

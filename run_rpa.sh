@@ -12,8 +12,9 @@
 #  - Para SFTP: usar claves SSH si es posible
 #
 #  Uso:
-#      ./run_rpa.sh                  # Modo Docker (por defecto)
-#      ./run_ruaf.sh                 # Menú interactivo (recomendado)
+#      ./run_rpa.sh                                    # Modo Docker (por defecto)
+#      SKIP_SSL_VERIFY=1 ./run_rpa.sh                 # Deshabilitar validación SSL
+#      ./run_ruaf.sh                                  # Menú interactivo (recomendado)
 #
 #  Configuración por archivo:
 #      cp config.docker.env.example config.docker.env
@@ -32,6 +33,7 @@ PYTHON="${PYTHON:-.venv/bin/python}"     # intérprete con paramiko instalado
 FILEZILLA="${FILEZILLA:-FileZilla.xml}"  # configuración de conexión
 SITE="${SITE:-Ministerio 2}"             # site donde publican los RUA200AAFP
 DEST="${DEST:-.}"                        # carpeta de descarga local
+SKIP_SSL_VERIFY="${SKIP_SSL_VERIFY:-}"   # deshabilitar verificación SSL (vacío=no, "1"=sí)
 
 # Base de datos destino (cambiar para la infra del instructivo)
 DB_MODE="${DB_MODE:-docker}"             # docker | direct
@@ -51,10 +53,15 @@ echo "============================================================"
 
 echo "==> [1/2] Descargando ultimo RUA200AAFP (SFTP/FTPS) ..."
 # descargar_sftp.py escribe el progreso por STDERR y SOLO la ruta por STDOUT.
-ARCHIVO="$("$PYTHON" descargar_sftp.py \
-              --filezilla "$FILEZILLA" \
-              --site "$SITE" \
-              --dest "$DEST")"
+DOWNLOAD_OPTS=(
+    --filezilla "$FILEZILLA"
+    --site "$SITE"
+    --dest "$DEST"
+)
+if [[ -n "$SKIP_SSL_VERIFY" ]]; then
+    DOWNLOAD_OPTS+=(--skip-ssl-verify)
+fi
+ARCHIVO="$("$PYTHON" descargar_sftp.py "${DOWNLOAD_OPTS[@]}")"
 
 if [[ -z "$ARCHIVO" || ! -f "$ARCHIVO" ]]; then
     echo "ERROR: no se obtuvo un archivo valido de la descarga." >&2

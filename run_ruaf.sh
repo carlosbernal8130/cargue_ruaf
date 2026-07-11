@@ -2,6 +2,13 @@
 # Script ejecutor de RUAF - Mismo flujo para Docker y Producción
 # 1. Descargar del FTP
 # 2. Cargar en base de datos
+#
+# Uso:
+#   ./run_ruaf.sh                           # Menú interactivo normal
+#   RUAF_SKIP_SSL_VERIFY=1 ./run_ruaf.sh    # Deshabilitar validación SSL (solo desarrollo)
+#
+# Variables de entorno opcionales:
+#   RUAF_SKIP_SSL_VERIFY=1  - Deshabilita validación de certificados SSL (inseguro)
 
 set -e
 
@@ -63,6 +70,9 @@ ejecutar() {
     # shellcheck disable=SC1090
     . "$CONFIG_FILE"
 
+    # Valores por defecto si no están en el config
+    RUAF_SKIP_SSL_VERIFY="${RUAF_SKIP_SSL_VERIFY:-}"
+
     # Validar que python3 existe
     if ! python3 --version &>/dev/null; then
         log_error "Python3 no está instalado."
@@ -88,10 +98,13 @@ ejecutar() {
         exit 1
     fi
 
-    INPUT_FILE=$(python3 descargar_sftp.py \
-        --filezilla "$RUAF_FILEZILLA" \
-        --site "$RUAF_SITE_FTP" \
-        --dest "$RUAF_DEST_DIR" 2>&1 | tail -1)
+    DOWNLOAD_CMD="python3 descargar_sftp.py --filezilla \"$RUAF_FILEZILLA\" --site \"$RUAF_SITE_FTP\" --dest \"$RUAF_DEST_DIR\""
+    if [ -n "$RUAF_SKIP_SSL_VERIFY" ]; then
+        DOWNLOAD_CMD="$DOWNLOAD_CMD --skip-ssl-verify"
+        log_warning "SSL verification is disabled (--skip-ssl-verify)"
+    fi
+
+    INPUT_FILE=$(eval "$DOWNLOAD_CMD" 2>&1 | tail -1)
 
     if [ -z "$INPUT_FILE" ] || [ ! -f "$INPUT_FILE" ]; then
         log_error "Error al descargar el archivo del FTP."
