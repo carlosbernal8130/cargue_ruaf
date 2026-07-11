@@ -1,27 +1,35 @@
 #!/usr/bin/env bash
 # ============================================================================
-#  RPA RUAF - Orquestador de una sola ejecucion
-#  ----------------------------------------------------------------------------
-#  1) Descarga por SFTP/FTPS el ultimo archivo RUA200AAFP del servidor del
-#     ministerio (segun FileZilla.xml).
+#  RPA RUAF - Orquestador de una sola ejecución
+#  ============================================================================
+#  1) Descarga por SFTP/FTPS el último archivo RUA200AAFP del servidor del
+#     ministerio (según FileZilla.xml).
 #  2) Carga y transforma su contenido en la tabla 'resolucion_ruaf'.
 #
+#  SEGURIDAD:
+#  - Las contraseñas NUNCA se especifican aquí ni en argumentos
+#  - Para PostgreSQL: usar ~/.pgpass (permisos 600)
+#  - Para SFTP: usar claves SSH si es posible
+#
 #  Uso:
+#      ./run_rpa.sh                  # Modo Docker (por defecto)
+#      ./run_ruaf.sh                 # Menú interactivo (recomendado)
+#
+#  Configuración por archivo:
+#      cp config.docker.env.example config.docker.env
+#      . ./config.docker.env
 #      ./run_rpa.sh
 #
-#  Todo es parametrizable por variables de entorno (ver mas abajo). Para la
-#  infra del instructivo basta con exportar las variables antes de ejecutar,
-#  p.ej.:
-#      DB_MODE=direct DB_HOST=10.10.11.161 DB_USER=jamaica DB_NAME=interssi \
-#      DB_PASS='J4r3sJ41m3T0rr35' SITE='Ministerio 2' ./run_rpa.sh
+#  Documentación:
+#      Ver DEVELOPMENT.md para instrucciones detalladas
 # ============================================================================
 set -euo pipefail
 
 cd "$(dirname "$0")"
 
-# --- Configuracion (valores por defecto = prueba local en Docker) -----------
-PYTHON="${PYTHON:-.venv/bin/python}"     # interprete con paramiko instalado
-FILEZILLA="${FILEZILLA:-FileZilla.xml}"  # config de conexion
+# --- Configuración (valores por defecto = prueba local en Docker) -----------
+PYTHON="${PYTHON:-.venv/bin/python}"     # intérprete con paramiko instalado
+FILEZILLA="${FILEZILLA:-FileZilla.xml}"  # configuración de conexión
 SITE="${SITE:-Ministerio 2}"             # site donde publican los RUA200AAFP
 DEST="${DEST:-.}"                        # carpeta de descarga local
 
@@ -32,7 +40,9 @@ DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-5432}"
 DB_USER="${DB_USER:-postgres}"
 DB_NAME="${DB_NAME:-bdua_fosyga}"
-DB_PASS="${DB_PASS:-Majito.08}"          # OJO: en produccion usar variable/secreto
+# NOTA: DB_PASS NO TIENE VALOR POR DEFECTO
+# Las credenciales se cargan desde ~/.pgpass o PGPASSWORD en el entorno
+# Ver DEVELOPMENT.md para configurar
 # ----------------------------------------------------------------------------
 
 echo "============================================================"
@@ -60,7 +70,6 @@ echo "==> [2/2] Cargando y transformando en '$DB_NAME' ..."
     --host "$DB_HOST" \
     --port "$DB_PORT" \
     --user "$DB_USER" \
-    --dbname "$DB_NAME" \
-    --password "$DB_PASS"
+    --dbname "$DB_NAME"
 
 echo "==> Proceso RPA finalizado OK."

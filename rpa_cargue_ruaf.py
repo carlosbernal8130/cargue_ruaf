@@ -40,15 +40,16 @@ Portabilidad (Docker de prueba  ->  infra real del instructivo)
 
         python3 rpa_cargue_ruaf.py --mode direct \\
             --host 10.10.11.161 --user jamaica --dbname interssi \\
-            --password 'J4r3sJ41m3T0rr35' \\
             --input /home/pardo.contreras/Videos/RUA200AAFP...dat
+
+    La contraseña se obtiene desde ~/.pgpass (ver DEVELOPMENT.md).
 
 Ejemplo de uso en la prueba local (Docker):
 
     python3 rpa_cargue_ruaf.py \\
         --input RUA200AAFP20260619NI000900474727.zip \\
         --mode docker --container mi_postgres_data \\
-        --user postgres --dbname bdua_fosyga --password 'Majito.08'
+        --user postgres --dbname bdua_fosyga
 """
 
 import argparse
@@ -93,21 +94,28 @@ class RpaError(Exception):
 
 
 def build_env(cfg):
+    # Solo hereda variables de entorno.
+    # PGPASSWORD debe venir de:
+    #   1. ~/.pgpass (recomendado, permisos 600)
+    #   2. Variable de entorno PGPASSWORD exportada previamente
+    # NUNCA se pasa contraseña en argumentos de línea de comandos.
     env = os.environ.copy()
-    if cfg.password:
-        env["PGPASSWORD"] = cfg.password
     return env
 
 
 def psql_cmd(cfg, extra=None):
-    """Comando base de psql segun el modo (docker | direct)."""
+    """Comando base de psql segun el modo (docker | direct).
+
+    Las credenciales se obtienen desde:
+      - ~/.pgpass (recomendado, permisos 600)
+      - Variable de entorno PGPASSWORD (si está disponible)
+
+    NUNCA se pasan credenciales como argumentos de línea de comandos.
+    """
     extra = extra or []
     common = ["-U", cfg.user, "-d", cfg.dbname, "-v", "ON_ERROR_STOP=1"]
     if cfg.mode == "docker":
-        base = ["docker", "exec", "-i"]
-        if cfg.password:
-            base += ["-e", "PGPASSWORD=%s" % cfg.password]
-        base += [cfg.container, "psql"] + common
+        base = ["docker", "exec", "-i", cfg.container, "psql"] + common
     else:
         base = ["psql", "-h", cfg.host, "-p", str(cfg.port)] + common
     return base + extra
@@ -361,7 +369,6 @@ def parse_args(argv):
     p.add_argument("--port", default=os.environ.get("PGPORT", "5432"))
     p.add_argument("--user", default=os.environ.get("PGUSER", "postgres"))
     p.add_argument("--dbname", default=os.environ.get("PGDATABASE", "bdua_fosyga"))
-    p.add_argument("--password", default=os.environ.get("PGPASSWORD", ""))
     p.add_argument("--log-dir", default=os.environ.get("RUAF_LOGDIR", "logs"),
                    help="Carpeta donde se escriben los logs.")
     return p.parse_args(argv)

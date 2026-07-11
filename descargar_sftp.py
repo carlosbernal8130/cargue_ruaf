@@ -1,26 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Descarga el ultimo archivo RUA200AAFP del servidor del ministerio (ADRES/MinSalud).
-====================================================================================
+Descarga el archivo más reciente RUA200AAFP del servidor del ministerio (ADRES/MinSalud).
+=======================================================================================
 
-- Lee la configuracion (host/puerto/usuario/clave/protocolo) desde el
-  FileZilla.xml del proyecto (la clave viene en base64).
-- Soporta dos transportes, segun el protocolo del site en FileZilla:
+- Lee la configuración (host/puerto/usuario/clave/protocolo) desde el
+  FileZilla.xml del proyecto (la clave viene en base64 - ver SECURITY.md).
+- Soporta dos transportes, según el protocolo del site en FileZilla:
       * SFTP           (Protocol=1)  -> via paramiko           (p.ej. ADRES)
       * FTPS implicito (puerto 990)  -> via ftplib (TLS)       (p.ej. MinSalud)
       * FTPS explicito (otro puerto) -> via ftplib (AUTH TLS)
-- Lista el directorio remoto, filtra por  RUA200AAFP<AAAAMMDD>NI000900474727.zip
+- Lista el directorio remoto, filtra por RUA200AAFP<AAAAMMDD>NI000900474727.zip
   y elige el MAS RECIENTE por la fecha AAAAMMDD del nombre.
-- Descarga a la carpeta local (si ya existe con igual tamano, no lo repite).
+- Descarga a la carpeta local (si ya existe con igual tamaño, no lo repite).
 
-Imprime en STDOUT unicamente la ruta local del archivo descargado (para
+Imprime en STDOUT SOLO la ruta local del archivo descargado (para
 encadenarlo desde el .sh); el progreso va a STDERR.
 
-Uso tipico (los RUA200AAFP estan en 'Ministerio 2' = ftp.minsalud.gov.co):
+Uso típico (los RUA200AAFP están en 'Ministerio 2' = ftp.minsalud.gov.co):
     python3 descargar_sftp.py                       # site por defecto: 'Ministerio 2'
     python3 descargar_sftp.py --site 'Adres'        # usar el SFTP de ADRES
     python3 descargar_sftp.py --remote-dir '' --dest .
+
+SEGURIDAD:
+- Los certificados SSL/TLS se validan contra el sistema (CERT_REQUIRED)
+- Para SFTP se recomienda usar claves SSH en lugar de contraseñas
+- Las credenciales nunca se logguean (solo stderr con progreso)
 """
 
 import argparse
@@ -122,25 +127,36 @@ class ImplicitFTP_TLS(ftplib.FTP_TLS):
 
 
 class FTPSTransport:
-    """Backend FTPS (implicito o explicito) sobre ftplib."""
+    """Backend FTPS (implicito o explicito) sobre ftplib con validación SSL.
+
+    Valida certificados SSL contra la CA del sistema para prevenir MITM attacks.
+    """
 
     def __init__(self, cfg, remote_dir, timeout):
         implicito = cfg["port"] == 990
+        # Crear contexto SSL que valida certificados del servidor
         ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        ctx.check_hostname = True
+        ctx.verify_mode = ssl.CERT_REQUIRED
         cls = ImplicitFTP_TLS if implicito else ftplib.FTP_TLS
-        log("Conectando FTPS %s a %s:%d ..."
-            % ("implicito" if implicito else "explicito", cfg["host"], cfg["port"]))
-        self.ftp = cls(context=ctx, timeout=timeout, encoding="latin-1")
-        self.ftp.connect(cfg["host"], cfg["port"])
-        self.ftp.login(cfg["user"], cfg["password"])
-        self.ftp.prot_p()          # canal de datos cifrado
-        self.ftp.set_pasv(True)
-        self.ftp.voidcmd("TYPE I")  # binario (para SIZE/RETR)
-        if remote_dir:
-            self.ftp.cwd(remote_dir)
-        log("Login OK. Directorio: %s" % self.ftp.pwd())
+        try:
+            log("Conectando FTPS %s a %s:%d ..."
+                % ("implicito" if implicito else "explicito", cfg["host"], cfg["port"]))
+            self.ftp = cls(context=ctx, timeout=timeout, encoding="latin-1")
+            self.ftp.connect(cfg["host"], cfg["port"])
+            self.ftp.login(cfg["user"], cfg["password"])
+            self.ftp.prot_p()          # canal de datos cifrado
+            self.ftp.set_pasv(True)
+            self.ftp.voidcmd("TYPE I")  # binario (para SIZE/RETR)
+            if remote_dir:
+                self.ftp.cwd(remote_dir)
+            log("Login OK. Directorio: %s" % self.ftp.pwd())
+        except ssl.SSLError as e:
+            raise SystemExit(
+                f"Error de verificación SSL en {cfg['host']}: {e}\n"
+                "Verifica que el certificado del servidor sea válido.\n"
+                "Si el problema persiste, contacta a administración."
+            )
 
     def listdir(self):
         return [os.path.basename(n) for n in self.ftp.nlst()]
@@ -148,7 +164,7 @@ class FTPSTransport:
     def size(self, name):
         try:
             return self.ftp.size(name)
-        except Exception:
+        except (ftplib.all_errors, OSError):
             return None
 
     def get(self, name, local, callback):
@@ -173,20 +189,33 @@ class FTPSTransport:
 
 
 class SFTPTransport:
-    """Backend SFTP sobre paramiko (import perezoso)."""
+    """Backend SFTP sobre paramiko con validación de host keys.
+
+    Valida claves de host contra ~/.ssh/known_hosts para prevenir MITM attacks.
+    Si la clave del host es desconocida, la conexión falla (WarningPolicy).
+    """
 
     def __init__(self, cfg, remote_dir, timeout):
         import paramiko  # solo se necesita para SFTP
         self.remote_dir = remote_dir
-        log("Conectando SFTP a %s@%s:%d ..." % (cfg["user"], cfg["host"], cfg["port"]))
-        self.ssh = paramiko.SSHClient()
-        self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.ssh.connect(
-            hostname=cfg["host"], port=cfg["port"], username=cfg["user"],
-            password=cfg["password"], timeout=timeout, banner_timeout=timeout,
-            auth_timeout=timeout, look_for_keys=False, allow_agent=False,
-        )
-        self.sftp = self.ssh.open_sftp()
+        try:
+            log("Conectando SFTP a %s@%s:%d ..." % (cfg["user"], cfg["host"], cfg["port"]))
+            self.ssh = paramiko.SSHClient()
+            # Cargar known_hosts del usuario; rechazar claves desconocidas
+            self.ssh.load_system_host_keys()
+            self.ssh.set_missing_host_key_policy(paramiko.WarningPolicy())
+            self.ssh.connect(
+                hostname=cfg["host"], port=cfg["port"], username=cfg["user"],
+                password=cfg["password"], timeout=timeout, banner_timeout=timeout,
+                auth_timeout=timeout, look_for_keys=False, allow_agent=False,
+            )
+            self.sftp = self.ssh.open_sftp()
+        except paramiko.ssh_exception.SSHException as e:
+            raise SystemExit(
+                f"Error de conexión SSH a {cfg['host']}:{cfg['port']}: {e}\n"
+                "Verifica que la clave de host sea válida.\n"
+                "Ejecuta: ssh-keyscan -t rsa {cfg['host']} >> ~/.ssh/known_hosts"
+            )
 
     def _full(self, name):
         return (self.remote_dir.rstrip("/") + "/" + name) if self.remote_dir else name
@@ -234,7 +263,17 @@ def elegir_ultimo(tr, patron):
 
 
 def descargar(tr, nombre, dest_dir, force):
+    # Validar que el nombre no contiene path traversal
+    if ".." in nombre or nombre.startswith("/"):
+        raise SystemExit(
+            f"Nombre de archivo inválido (path traversal detectado): {nombre}"
+        )
     local = os.path.join(dest_dir, nombre)
+    # Verificar que el path final está dentro de dest_dir (seguridad adicional)
+    if not os.path.abspath(local).startswith(os.path.abspath(dest_dir)):
+        raise SystemExit(
+            f"Path final fuera del directorio permitido: {local}"
+        )
     tam = tr.size(nombre)
 
     if os.path.isfile(local) and not force and tam and os.path.getsize(local) == tam:

@@ -1,0 +1,11 @@
+# Dependencias de ejecución - RUAF RPA
+# Uso: pip install -r requirements.txt
+
+# Descarga SFTP - Requerido para descargar_sftp.py
+paramiko>=3.0.0,<4.0.0
+
+# Nota: psql es un binario del sistema (PostgreSQL client)
+# Debe estar instalado en el sistema antes de ejecutar el RPA
+# Ubuntu/Debian: sudo apt-get install postgresql-client
+# macOS: brew install postgresql
+# Otros: https://www.postgresql.org/download/

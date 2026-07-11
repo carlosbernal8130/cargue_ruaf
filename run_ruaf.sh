@@ -117,7 +117,6 @@ ejecutar() {
         --port "$PGPORT" \
         --user "$PGUSER" \
         --dbname "$PGDATABASE" \
-        --password "$PGPASSWORD" \
         --input "$INPUT_FILE" \
         --log-dir "$RUAF_LOGDIR"
 

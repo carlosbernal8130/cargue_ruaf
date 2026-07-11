@@ -7,3 +7,32 @@ venv/
 *.egg-info/
 .DS_Store
 *.zip
+
+# Configuración sensible
+config.*.env
+FileZilla.xml
+.env
+.env.local
+.env.*.local
+.pgpass
+.ssh/
+
+# Secrets y credenciales
+secrets/
+.secrets/
+credentials/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Archivos temporales
+*.tmp
+*.temp

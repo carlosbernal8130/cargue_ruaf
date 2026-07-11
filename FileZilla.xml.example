@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FileZilla3 version="3.66.5" platform="*nix">
+	<Servers>
+		<Server>
+			<Host>mft.adres.gov.co</Host>
+			<Port>22</Port>
+			<Protocol>1</Protocol>
+			<Type>0</Type>
+			<User>YOUR_USERNAME</User>
+			<Pass encoding="base64">BASE64_ENCODED_PASSWORD</Pass>
+			<Logontype>1</Logontype>
+			<EncodingType>Auto</EncodingType>
+			<BypassProxy>0</BypassProxy>
+			<Name>Adres</Name>
+			<SyncBrowsing>0</SyncBrowsing>
+			<DirectoryComparison>0</DirectoryComparison>
+		</Server>
+		<Server>
+			<Host>ftp.minsalud.gov.co</Host>
+			<Port>990</Port>
+			<Protocol>0</Protocol>
+			<Type>0</Type>
+			<User>YOUR_USERNAME</User>
+			<Pass encoding="base64">BASE64_ENCODED_PASSWORD</Pass>
+			<Logontype>1</Logontype>
+			<PasvMode>MODE_DEFAULT</PasvMode>
+			<EncodingType>Auto</EncodingType>
+			<BypassProxy>0</BypassProxy>
+			<Name>Ministerio 2</Name>
+			<SyncBrowsing>0</SyncBrowsing>
+			<DirectoryComparison>0</DirectoryComparison>
+		</Server>
+	</Servers>
+</FileZilla3>
