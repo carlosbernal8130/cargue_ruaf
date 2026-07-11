@@ -181,10 +181,10 @@ class FTPSTransport:
     def close(self):
         try:
             self.ftp.quit()
-        except Exception:
+        except (ftplib.all_errors, OSError):
             try:
                 self.ftp.close()
-            except Exception:
+            except (ftplib.all_errors, OSError):
                 pass
 
 
@@ -233,7 +233,7 @@ class SFTPTransport:
         try:
             self.sftp.close()
             self.ssh.close()
-        except Exception:
+        except (OSError, paramiko.ssh_exception.SSHException):
             pass
 
 
