@@ -75,28 +75,31 @@ class TestTransformacion:
 
     def test_transformar_admin_trim(self, logger):
         """Verifica que trim() de cod_administradora."""
-        # Admin con espacios
-        data = b"CCCCCCCCCCCCCCCCADMIN  2024-07-11\n"
+        # Admin con espacios (formato correcto: 2+16+6+10 chars)
+        # Nota: espacios en administradora se TRIM, 'ADMIN  ' -> 'ADMIN'
+        data = b"CC0000000000012345ADMIN  2024-07-11\n"
         input_stream = io.BytesIO(data)
         output_stream = io.BytesIO()
 
         lineas, script = rpa._transformar(input_stream, output_stream, logger)
 
         output = output_stream.getvalue().decode()
-        # Los espacios deben removerse
-        assert "ADMIN" in output, "Admin debe estar en output"
+        # Los espacios deben removerse, admin debería ser "ADMIN"
+        assert "ADMIN" in output, f"Admin debe estar en output. Got: {output}"
 
     def test_transformar_fecha_conversion_aaaammdd_a_aaaa_mm_dd(self, logger):
         """Verifica conversión de fecha AAAAMMDD a AAAA-MM-DD."""
-        # Fecha 20240711 debe convertirse a 2024-07-11
-        data = b"CCCC00000000123456BANKDATE20240711\n"
+        # Formato: 2 (tipo) + 16 (nro) + 6 (admin) + 8 (fecha AAAAMMDD)
+        # Total: 32 caracteres
+        data = b"CC0000000000012345ADMIN 20240711\n"
         input_stream = io.BytesIO(data)
         output_stream = io.BytesIO()
 
         lineas, script = rpa._transformar(input_stream, output_stream, logger)
 
         output = output_stream.getvalue().decode()
-        assert "2024-07-11" in output, "Fecha debe convertirse a AAAA-MM-DD"
+        # Debe tener la fecha convertida a formato AAAA-MM-DD
+        assert "2024-07-11" in output, f"Fecha debe convertirse a AAAA-MM-DD. Got: {output}"
 
 
 class TestValidaciones:
@@ -127,10 +130,10 @@ class TestValidaciones:
         """Verifica fallo cuando filas COPY != lineas leidas."""
         scalar_mock = mocker.patch("rpa_cargue_ruaf.scalar_sql")
         scalar_mock.side_effect = [
-            "90",   # resolucion_ruaf count (diferente)
-            "0",
-            "0",
-            "0",
+            "90",   # resolucion_ruaf count (diferente de 100)
+            "0",    # fechas_no_10
+            "0",    # admin_con_espacios
+            "0",    # docs_alfanumericos
         ]
 
         cfg = MagicMock()
@@ -139,7 +142,8 @@ class TestValidaciones:
         resultado = rpa.validar(cfg, 100, 100, logger)
 
         assert resultado["ok"] is False, "Validación debe fallar"
-        assert "filas COPY != lineas leidas" in resultado["problemas"]
+        # El mensaje es "count(resolucion_ruaf) != filas COPY"
+        assert "count(resolucion_ruaf) != filas COPY" in resultado["problemas"]
 
     def test_validar_fechas_invalidas(self, mocker):
         """Verifica fallo cuando hay fechas con longitud incorrecta."""
@@ -183,9 +187,9 @@ class TestArgumentos:
 
     def test_parse_args_input_requerido(self):
         """Verifica que --input es requerido."""
-        with pytest.raises(SystemExit):
-            # Sin --input debe fallar
-            rpa.main([])
+        # Sin --input, main() retorna código 1
+        result = rpa.main([])
+        assert result == 1, "Sin --input debe retornar código 1"
 
     def test_parse_args_defaults(self):
         """Verifica valores por defecto de argumentos."""

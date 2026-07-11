@@ -28,21 +28,39 @@ def temp_dir():
 
 @pytest.fixture
 def sample_fixed_width_data():
-    """Datos de ejemplo en formato ancho fijo (AAAA-MM-DD)."""
+    """Datos de ejemplo en formato ancho fijo (AAAA-MM-DD).
+
+    Formato:
+    - tipo_documento (0-2): 2 chars
+    - nro_documento (2-18): 16 chars
+    - cod_administradora (18-24): 6 chars
+    - fecha (24+): 10 chars (AAAA-MM-DD)
+
+    Total: 2+16+6+10 = 34 chars por línea
+    """
     return (
-        b"CCCC00000000123456BANKDATE2024-07-11\n"
-        b"CCCC00000000654321ADMINXXX2024-07-12\n"
-        b"CCCC99999999000000OTHERXX2024-07-13\n"
+        b"CC0000000000012345ADMIN12024-07-11\n"
+        b"CC0000000000065432BADMIN22024-07-12\n"
+        b"CC9999999999900000CADMIN32024-07-13\n"
     )
 
 
 @pytest.fixture
 def sample_fixed_width_data_aaaammdd():
-    """Datos de ejemplo en formato ancho fijo (AAAAMMDD)."""
+    """Datos de ejemplo en formato ancho fijo (AAAAMMDD).
+
+    Formato:
+    - tipo_documento (0-2): 2 chars
+    - nro_documento (2-18): 16 chars
+    - cod_administradora (18-24): 6 chars
+    - fecha (24-32): 8 chars (AAAAMMDD)
+
+    Total: 2+16+6+8 = 32 chars por línea
+    """
     return (
-        b"CCCC00000000123456BANKDATE20240711\n"
-        b"CCCC00000000654321ADMINXXX20240712\n"
-        b"CCCC99999999000000OTHERXX20240713\n"
+        b"CC0000000000012345ADMIN 20240711\n"
+        b"CC0000000000065432BADMIN20240712\n"
+        b"CC9999999999900000CADMIN20240713\n"
     )
 
 
